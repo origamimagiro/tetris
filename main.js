@@ -209,7 +209,7 @@ const refill = (next) => {
 
 const make_gui = (G) => {
     for (const [id, text, x, y] of [
-        ["title", "Tetris", 20, 10],
+        ["title", "Tetris", 25, 10],
         ["score", "Score:", 240, 10],
         ["score_val", "0", 300, 10],
         ["round", "Round:", 240, 50],
@@ -219,11 +219,16 @@ const make_gui = (G) => {
         ["lines", "Lines:", 240, 100],
         ["lines_val", "0", 300, 100],
         ["end", "", 240, 150],
+        ["control", `
+Move [Arrows]<br>
+Drop [Space]<br>
+Rotate [Z and Up]<br>
+Hold [C]`, 240, 250],
         ["next", "Next:", 240, 340],
         ["copyright", `
 © Jason S. Ku 2025
 <a href="https://origamimagiro.github.io/tetris/">
-Code on Github</a>`, 20, 350],
+Code on Github</a>`, 25, 460],
     ]) {
         const el = document.createElement("div");
         el.style.position = "absolute";
