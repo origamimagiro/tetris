@@ -222,7 +222,7 @@ const make_gui = (G) => {
         ["next", "Next:", 240, 340],
         ["copyright", `
 © Jason S. Ku 2025
-<a href="">
+<a href="https://origamimagiro.github.io/tetris/">
 Code on Github</a>`, 20, 350],
     ]) {
         const el = document.createElement("div");
