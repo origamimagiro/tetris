@@ -1,7 +1,7 @@
 const GUI = [
-    ["title", "Tetris", 25, 10],
-    ["score", "Score:", 240, 10],
-    ["score_val", "0", 300, 10],
+    ["title", "Tetris", 25, 15],
+    ["score", "Score:", 240, 15],
+    ["score_val", "0", 300, 15],
     ["round", "Round:", 240, 50],
     ["round_val", "1", 300, 50],
     ["stage", "Stage:", 240, 75],
@@ -89,7 +89,7 @@ const main = () => {
 
 const next_piece = (G) => {
     G.t = G.P.pop();
-    G.x = START_X - Math.ceil(SHAPES[G.t].length/2);
+    G.x = START_X - Math.floor(SHAPES[G.t].length/2);
     G.y = START_Y;
     G.r = 0;
     if (G.P.length == 0) { refill(G.P); }
