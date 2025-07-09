@@ -15,8 +15,8 @@ const GUI = [
         "Rotate [Z and Up]<br>" +
         "Hold [C]", 240, 240],
     ["next", "Next:", 240, 340],
-    ["copyright", "© Jason S. Ku 2025" +
-        "<a href='https://origamimagiro.github.io/tetris/'>" +
+    ["copyright", "© Jason S. Ku 2025 " +
+        "<a href='https://github.com/origamimagiro/tetris'>" +
         "Code on Github</a>", 25, 460],
 ];
 
