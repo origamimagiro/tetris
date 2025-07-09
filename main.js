@@ -22,16 +22,9 @@ const GUI = [
 
 // https://tetris.wiki/Tetromino
 const COLORS = {
-    B: "white",
-    X: "lightgray",
-    F: "pink",
-    I: "cyan",
-    O: "yellow",
-    J: "blue",
-    L: "orange",
-    S: "green",
-    Z: "red",
-    T: "purple",
+    B: "white",  X: "lightgray",
+    F: "pink",   I: "cyan",  O: "yellow", J: "blue",
+    L: "orange", S: "green", Z: "red",    T: "purple",
 };
 
 const SHAPES = {
@@ -78,7 +71,7 @@ const NUM_STAGES = 10;
 const NUM_ROUNDS = 6;
 
 const START_Y = 19;
-const START_X = 6;
+const START_X = 5;
 
 const main = () => {
     document.body.style.background = COLORS.X;
@@ -96,7 +89,7 @@ const main = () => {
 
 const next_piece = (G) => {
     G.t = G.P.pop();
-    G.x = START_X - (SHAPES[G.t].length >> 1);
+    G.x = START_X - Math.ceil(SHAPES[G.t].length/2);
     G.y = START_Y;
     G.r = 0;
     if (G.P.length == 0) { refill(G.P); }
