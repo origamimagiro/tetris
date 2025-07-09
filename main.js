@@ -1,3 +1,25 @@
+const GUI = [
+    ["title", "Tetris", 25, 10],
+    ["score", "Score:", 240, 10],
+    ["score_val", "0", 300, 10],
+    ["round", "Round:", 240, 50],
+    ["round_val", "1", 300, 50],
+    ["stage", "Stage:", 240, 75],
+    ["stage_val", "1", 300, 75],
+    ["lines", "Lines:", 240, 100],
+    ["lines_val", "0", 300, 100],
+    ["end", "", 240, 150],
+    ["control", "Start [Return]<br>" +
+        "Move [Arrows]<br>" +
+        "Drop [Space]<br>" +
+        "Rotate [Z and Up]<br>" +
+        "Hold [C]", 240, 240],
+    ["next", "Next:", 240, 340],
+    ["copyright", "© Jason S. Ku 2025" +
+        "<a href='https://origamimagiro.github.io/tetris/'>" +
+        "Code on Github</a>", 25, 460],
+];
+
 // https://tetris.wiki/Tetromino
 const COLORS = {
     B: "white",
@@ -62,14 +84,14 @@ const main = () => {
     document.body.style.background = COLORS.X;
     const G = {
         B: Array(24).fill().map(() => Array(10).fill()),
-        P: [], t: 'I', x: 0, y: START_Y, r: 0, m: 20,
-        end: true, i: 0, swap: true,
+        P: [], t: 'I', x: 0, y: START_Y, r: 0, m: START_Y + 1,
+        end: true, hold: true,
         round: 1, stage: 0, lines: 0, score: 0, drop: 0,
     };
     make_gui(G);
-    document.onkeydown = (e) => process(G, e.keyCode);
     clear_board(G.B);
     draw(G);
+    document.onkeydown = (e) => process(G, e.keyCode);
 };
 
 const next_piece = (G) => {
@@ -80,8 +102,8 @@ const next_piece = (G) => {
     if (G.P.length == 0) { refill(G.P); }
 };
 
-const update = (G, i) => {
-    if ((G.i != i) || G.end) { return; }
+const update = (G) => {
+    if (G.end) { return; }
     if (G.P.length == 0) { refill(G.P); }
     G.y--;
     if (!check(G)) {
@@ -90,14 +112,11 @@ const update = (G, i) => {
     }
     draw(G);
     if (G.end) { return; }
-    window.setTimeout(() => update(G, i), STEPS[G.stage]);
+    window.setTimeout(() => update(G), STEPS[G.stage]);
 };
 
 const process = (G, k) => {
-    if (G.end) {
-        for (const c of [32, 37, 38, 39, 40, 67, 90]) {
-            if (c == k) { return; }
-        }
+    if (k == 13) {  // ENTER RESTART
         G.end = false;
         if ((G.lines < WIN_LINES) || (
             (G.stage + 1 == NUM_STAGES) && (G.round == NUM_ROUNDS)
@@ -119,54 +138,44 @@ const process = (G, k) => {
         refill(G.P);
         next_piece(G);
         --G.y;
-        G.i = 0;
         draw(G);
-        window.setTimeout(() => update(G, 0), STEPS[G.stage]);
+        update(G);
         return;
     }
+    if (G.end) { return; }
     switch (k) {
         case 37: // LEFT
-            --G.x;
-            if (!check(G)) { ++G.x; }
-            break;
         case 39: // RIGHT
-            ++G.x;
-            if (!check(G)) { --G.x; }
+            const d = (k == 37) ? -1 : 1;
+            G.x += d;
+            if (!check(G)) { G.x -= d; }
             break;
         case 40: // DOWN
             --G.y;
-            if (!check(G)) {
-                ++G.y;
-                place(G);
-            }
+            if (!check(G)) { ++G.y; place(G); }
             break;
-        case 38: // UP
+        case 38: // UP ROTATE CW
+        case 90: // Z  ROTATE CCW
+            const a = (k == 38) ? 3 : 1;
             const r = G.r;
-            G.r = (G.r + 3) % 4;
+            G.r = (G.r + a) % 4;
             const rk = `${r},${G.r}`;
             for (const [x, y] of ((G.t == 'I') ? KICKS_I : KICKS)[rk]) {
-                G.x += x;
-                G.y += y;
+                G.x += x; G.y += y;
                 if (check(G)) { break; }
-                G.x -= x;
-                G.y -= y;
+                G.x -= x; G.y -= y;
             }
-            if (!check(G)) { G.r = (G.r + 1) % 4; }
+            if (!check(G)) { G.r = (G.r + a + 2) % 4; }
             break;
-        case 90: // Z
-            G.r = (G.r + 1) % 4;
-            if (!check(G)) { G.r = (G.r + 3) % 4; }
-            break;
-        case 32: // DROP
-            G.drop = G.y + 1;
-            while (check(G)) { --G.y; }
+        case 32: // SPACE DROP
+            let drop = G.y + 1;
+            do { --G.y; } while (check(G))
             ++G.y;
-            G.drop -= G.y;
-            place(G);
-            G.drop = 0;
+            drop -= G.y;
+            place(G, drop);
             break;
-        case 67: // SWAP
-            if (!G.swap) { return; }
+        case 67: // C HOLD
+            if (!G.hold) { return; }
             const t = G.t;
             next_piece(G);
             G.P.push(t);
@@ -191,9 +200,7 @@ const check = (G) => {
             if ((y_ < 0) || (y_ >= m + 4) ||
                 (x_ < 0) || (x_ >= n) ||
                 ((y_ < m) && (G.B[y_][x_] != 'B'))
-            ) {
-                return false;
-            }
+            ) { return false; }
         }
     }
     return true;
@@ -207,36 +214,20 @@ const refill = (next) => {
     }
 };
 
+const fill_el = (el, att, sty = {}) => {
+    for (const [k, v] of Object.entries(att)) { el[k] = v; }
+    for (const [k, v] of Object.entries(sty)) { el.style[k] = v; }
+};
+
 const make_gui = (G) => {
-    for (const [id, text, x, y] of [
-        ["title", "Tetris", 25, 10],
-        ["score", "Score:", 240, 10],
-        ["score_val", "0", 300, 10],
-        ["round", "Round:", 240, 50],
-        ["round_val", "1", 300, 50],
-        ["stage", "Stage:", 240, 75],
-        ["stage_val", "1", 300, 75],
-        ["lines", "Lines:", 240, 100],
-        ["lines_val", "0", 300, 100],
-        ["end", "", 240, 150],
-        ["control", `
-Move [Arrows]<br>
-Drop [Space]<br>
-Rotate [Z and Up]<br>
-Hold [C]`, 240, 250],
-        ["next", "Next:", 240, 340],
-        ["copyright", `
-© Jason S. Ku 2025
-<a href="https://origamimagiro.github.io/tetris/">
-Code on Github</a>`, 25, 460],
-    ]) {
+    for (const [id, text, x, y] of GUI) {
         const el = document.createElement("div");
-        el.style.position = "absolute";
-        el.style.left = `${x}px`;
-        el.style.top = `${y}px`;
-        el.innerHTML = text;
-        el.style.fontFamily = "monospace";
-        el.id = id;
+        fill_el(el, {id, innerHTML: text}, {
+            position: "absolute",
+            left: `${x}px`,
+            top: `${y}px`,
+            fontFamily: "monospace",
+        });
         document.body.appendChild(el);
     }
     const n = G.B[0].length;
@@ -244,47 +235,85 @@ Code on Github</a>`, 25, 460],
     for (let y = 0; y < G.m; ++y) {
         for (let x = 0; x < n; ++x) {
             const cell = document.createElement("div");
-            cell.id = `B${x},${y}`;
-            cell.style.position = "absolute";
-            cell.style.height
-                = cell.style.width
-                = `${size}px`;
-            cell.style.left = `${size*(1 + x)}px`;
-            cell.style.top = `${size*(21 - y)}px`;
+            fill_el(cell, {id: `B${x},${y}`}, {
+                position: "absolute",
+                height: `${size}px`,
+                width: `${size}px`,
+                left: `${size*(1 + x)}px`,
+                top: `${size*(21 - y)}px`,
+            });
             document.body.appendChild(cell);
         }
     }
     for (let y = 0; y < 4; ++y) {
         for (let x = 0; x < 4; ++x) {
             const cell = document.createElement("div");
-            cell.id = `P${x},${y}`;
-            cell.style.position = "absolute";
-            cell.style.height
-                = cell.style.width
-                = `${size}px`;
-            cell.style.left = `${size*(12 + x)}px`;
-            cell.style.top = `${size*(21 - y)}px`;
+            fill_el(cell, {id: `P${x},${y}`}, {
+                position: "absolute",
+                height: `${size}px`,
+                width: `${size}px`,
+                left: `${size*(12 + x)}px`,
+                top: `${size*(21 - y)}px`,
+            });
             document.body.appendChild(cell);
+        }
+    }
+};
+
+const draw = (G) => {
+    const draw_cell = (id, t) => {
+        const empty = (t == 'B') || (t == 'F');
+        fill_el(document.getElementById(id), {}, {
+            background: COLORS[t],
+            boxSizing: "border-box",
+            border: empty ? "none" : `1px solid ${COLORS.X}`,
+        });
+    };
+    const n = G.B[0].length;
+    const lost = G.end && (G.lines < WIN_LINES) && (G.P.length > 0);
+    for (let y = 0; y < G.m; ++y) {
+        for (let x = 0; x < n; ++x) {
+            const c = G.B[y][x];
+            draw_cell(`B${x},${y}`, (lost && (c == 'B')) ? 'F' : c);
+        }
+    }
+    process_piece(G, (x, y) => draw_cell(`B${x},${y}`, G.t), G.m);
+    const shape = rotated_piece(G.t, G.r);
+    const s = shape.length;
+    for (let y = 0; y < s; ++y) {
+        const y_ = G.y + y;
+        if ((y_ < 0) || (y_ >= G.m)) { continue; }
+        for (let x = 0; x < s; ++x) {
+            if (shape[y][x] != '#') { continue; }
+            const x_ = G.x + x;
+            if ((x_ < 0) || (x_ >= n)) { continue; }
+        }
+    }
+    for (const s of ["lines", "stage", "round", "score"]) {
+        fill_el(document.getElementById(`${s}_val`), {innerHTML: `${G[s]}`});
+    }
+    fill_el(document.getElementById("end"), {innerHTML:
+        (!G.end || G.P.length == 0) ? "" : (
+        (G.lines < WIN_LINES) ? "GAME OVER" : (
+        (G.stage + 1 == NUM_STAGES) ? (
+            (G.round == NUM_ROUNDS) ? "GAME COMPLETE!" : "ROUND COMPLETE!"
+        ) : "STAGE COMPLETE!"))
+    }, {});
+    if (G.end || (G.P.length < 1)) { return; }
+    const type = G.P[G.P.length - 1];
+    const shape_ = SHAPES[type];
+    const s_ = shape_.length;
+    for (let y = 0; y < 4; ++y) {
+        for (let x = 0; x < 4; ++x) {
+            const t = ((y < s_) && (x < s_)) ? shape_[y][x] : ' ';
+            draw_cell(`P${x},${y}`, (t == ' ') ? 'X' : type);
         }
     }
 };
 
 const print_board = (G) => {
     const S = G.B.map((R, y) => R.map((c, x) => (c == 'B') ? '.' : c));
-    const m = G.B.length;
-    const n = G.B[0].length;
-    const shape = rotated_piece(G.t, G.r);
-    const s = shape.length;
-    for (let y = 0; y < s; ++y) {
-        const y_ = G.y + y;
-        if ((y_ < 0) || (y_ >= m)) { continue; }
-        for (let x = 0; x < s; ++x) {
-            if (shape[y][x] != '#') { continue; }
-            const x_ = G.x + x;
-            if ((x_ < 0) || (x_ >= n)) { continue; }
-            S[y_][x_] = G.t;
-        }
-    }
+    process_piece(G, (x, y) => S[y][x] = G.t);
     S.reverse();
     console.log(S.map(R => R.join("")).join("\n"));
 };
@@ -299,61 +328,7 @@ const clear_board = (B) => {
     }
 };
 
-const draw = (G) => {
-    const n = G.B[0].length;
-    const lost = G.end && (G.lines < WIN_LINES) && (G.P.length > 0);
-    for (let y = 0; y < G.m; ++y) {
-        for (let x = 0; x < n; ++x) {
-            const c = G.B[y][x];
-            draw_cell(`B${x},${y}`, (lost && (c == 'B')) ? 'F' : c);
-        }
-    }
-    const shape = rotated_piece(G.t, G.r);
-    const s = shape.length;
-    for (let y = 0; y < s; ++y) {
-        const y_ = G.y + y;
-        if ((y_ < 0) || (y_ >= G.m)) { continue; }
-        for (let x = 0; x < s; ++x) {
-            if (shape[y][x] != '#') { continue; }
-            const x_ = G.x + x;
-            if ((x_ < 0) || (x_ >= n)) { continue; }
-            draw_cell(`B${x_},${y_}`, G.t);
-        }
-    }
-    for (const s of ["lines", "stage", "round", "score"]) {
-        const el = document.getElementById(`${s}_val`);
-        el.innerHTML = `${G[s]}`;
-    }
-    document.getElementById("end").innerHTML =
-        (!G.end || G.P.length == 0) ? "" : (
-        (G.lines < WIN_LINES) ? "GAME OVER" : (
-        (G.stage + 1 == NUM_STAGES) ? (
-            (G.round == NUM_ROUNDS) ? "GAME COMPLETE!" : "ROUND COMPLETE!"
-        ) : "STAGE COMPLETE!"
-    ));
-    if (G.end || (G.P.length < 1)) { return; }
-    const type = G.P[G.P.length - 1];
-    const shape_ = SHAPES[type];
-    const s_ = shape_.length;
-    for (let y = 0; y < 4; ++y) {
-        for (let x = 0; x < 4; ++x) {
-            const t = ((y < s_) && (x < s_)) ? shape_[y][x] : ' ';
-            draw_cell(`P${x},${y}`, (t == ' ') ? 'X' : type);
-        }
-    }
-};
-
-const draw_cell = (id, t) => {
-    const cell = document.getElementById(id);
-    cell.style.background = COLORS[t];
-    cell.style.boxSizing = "border-box";
-    cell.style.border = ((t == 'B') || (t == 'F'))
-        ? "none"
-        : `1px solid ${COLORS.X}`;
-};
-
-const place = (G) => {
-    const m = G.B.length;
+const process_piece = (G, f, m = G.B.length) => {
     const n = G.B[0].length;
     const shape = rotated_piece(G.t, G.r);
     const s = shape.length;
@@ -364,9 +339,15 @@ const place = (G) => {
             if (shape[y][x] != '#') { continue; }
             const x_ = G.x + x;
             if ((x_ < 0) || (x_ >= n)) { continue; }
-            G.B[y_][x_] = G.t;
+            f(x_, y_);
         }
     }
+};
+
+const place = (G, drop = 0) => {
+    process_piece(G, (x, y) => G.B[y][x] = G.t);
+    const m = G.B.length;
+    const n = G.B[0].length;
     let cn = 0;
     for (let y = 0; y < m; ++y) {
         let filled = true;
@@ -376,45 +357,29 @@ const place = (G) => {
                 break;
             }
         }
-        if (filled) { ++cn; continue; }
+        if (filled) { ++cn; }
+        const y_ = filled ? y : (y - cn);
         for (let x = 0; x < n; ++x) {
-            G.B[y - cn][x] = G.B[y][x];
-        }
-    }
-    for (let y = m - cn; y < m; ++y) {
-        for (let x = 0; x < n; ++x) {
-            G.B[y][x] = 'B';
+            G.B[y_][x] = filled ? 'B' : G.B[y][x];
         }
     }
     G.lines += cn;
-    G.score += POINTS[cn] + G.drop;
+    G.score += POINTS[cn] + drop;
     next_piece(G);
     G.swap = true;
-    if (G.lines >= WIN_LINES) { G.end = true; }
-    if (!check(G)) { G.end = true; return; }
-    ++G.i;
-    const i = G.i;
-    window.setTimeout(() => update(G, i), STEPS[G.stage]);
-};
-
-const rotate = (x, y, r, ox, oy) => {
-    switch (r) {
-        case 0: return [x, y];
-        case 1: return [y - oy + ox, -(x - ox) + oy];
-        case 2: return [-x + 2*ox, -y + 2*oy];
-        case 3: return [-(y - oy) + ox, (x - ox) + oy];
-    }
+    if ((G.lines >= WIN_LINES) || !check(G)) { G.end = true; }
 };
 
 const rotated_piece = (type, r) => {
-    const shape = SHAPES[type];
-    const n = shape.length;
+    const S = SHAPES[type];
+    const n = S.length;
     const out = Array(n).fill().map(() => Array(n).fill(' '));
-    const o = (n - 1)/2;
+    const O = Array(4);
     for (let y = 0; y < n; ++y) {
+        O[1] = y; O[3] = n - 1 - y;
         for (let x = 0; x < n; ++x) {
-            const [x_, y_] = rotate(x, y, r, o, o);
-            out[y][x] = shape[y_][x_];
+            O[0] = x; O[2] = n - 1 - x;
+            out[y][x] = S[O[(r + 1) % 4]][O[r]];
         }
     }
     return out;
