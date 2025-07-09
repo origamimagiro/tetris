@@ -79,7 +79,7 @@ const main = () => {
         B: Array(24).fill().map(() => Array(10).fill()),
         P: [], t: 'I', x: 0, y: START_Y, r: 0, m: START_Y + 1,
         end: true, hold: true,
-        round: 1, stage: 0, lines: 0, score: 0, drop: 0,
+        round: 1, stage: 1, lines: 0, score: 0, drop: 0,
     };
     make_gui(G);
     clear_board(G.B);
@@ -105,21 +105,21 @@ const update = (G) => {
     }
     draw(G);
     if (G.end) { return; }
-    window.setTimeout(() => update(G), STEPS[G.stage]);
+    window.setTimeout(() => update(G), STEPS[G.stage - 1]);
 };
 
 const process = (G, k) => {
     if (k == 13) {  // ENTER RESTART
         G.end = false;
         if ((G.lines < WIN_LINES) || (
-            (G.stage + 1 == NUM_STAGES) && (G.round == NUM_ROUNDS)
+            (G.stage == NUM_STAGES) && (G.round == NUM_ROUNDS)
         )) {
-            G.stage = 0;
+            G.stage = 1;
             G.round = 1;
             G.score = 0;
         } else {
-            if (G.stage + 1 == NUM_STAGES) {
-                G.stage = 0;
+            if (G.stage == NUM_STAGES) {
+                G.stage = 1;
                 ++G.round;
             } else {
                 ++G.stage;
@@ -288,7 +288,7 @@ const draw = (G) => {
     fill_el(document.getElementById("end"), {innerHTML:
         (!G.end || G.P.length == 0) ? "" : (
         (G.lines < WIN_LINES) ? "GAME OVER" : (
-        (G.stage + 1 == NUM_STAGES) ? (
+        (G.stage == NUM_STAGES) ? (
             (G.round == NUM_ROUNDS) ? "GAME COMPLETE!" : "ROUND COMPLETE!"
         ) : "STAGE COMPLETE!"))
     }, {});
