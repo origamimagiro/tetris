@@ -10,10 +10,8 @@ const GUI = [
     ["lines_val", "0", 300, 100],
     ["end", "", 240, 150],
     ["control", "Start [Return]<br>" +
-        "Move [Arrows]<br>" +
-        "Drop [Space]<br>" +
-        "Rotate [Z and Up]<br>" +
-        "Hold [C]", 240, 240],
+        "Move [Arrows]<br>Drop [Space]<br>" +
+        "Rotate [Z and Up]<br>Hold [C]", 240, 240],
     ["next", "Next:", 240, 340],
     ["copyright", "© Jason S. Ku 2025 " +
         "<a href='https://github.com/origamimagiro/tetris'>" +
@@ -70,16 +68,13 @@ const WIN_LINES = 25;
 const NUM_STAGES = 10;
 const NUM_ROUNDS = 6;
 
-const START_Y = 19;
-const START_X = 5;
-
 const main = () => {
     document.body.style.background = COLORS.X;
     const G = {
         B: Array(24).fill().map(() => Array(10).fill()),
-        P: [], t: 'I', x: 0, y: START_Y, r: 0, m: START_Y + 1,
-        end: true, hold: true,
-        round: 1, stage: 1, lines: 0, score: 0, drop: 0,
+        P: [], t: undefined, x: 0, y: 0, r: 0, m: 20,
+        end: true, hold: true, game: 0,
+        round: 1, stage: 1, lines: 0, score: 0,
     };
     make_gui(G);
     clear_board(G.B);
@@ -89,14 +84,14 @@ const main = () => {
 
 const next_piece = (G) => {
     G.t = G.P.pop();
-    G.x = START_X - Math.floor(SHAPES[G.t].length/2);
-    G.y = START_Y;
+    G.x = 5 - Math.floor(SHAPES[G.t].length/2);
+    G.y = 19;
     G.r = 0;
     if (G.P.length == 0) { refill(G.P); }
 };
 
-const update = (G) => {
-    if (G.end) { return; }
+const update = (G, game) => {
+    if (G.end || (G.game != game)) { return; }
     if (G.P.length == 0) { refill(G.P); }
     G.y--;
     if (!check(G)) {
@@ -105,12 +100,11 @@ const update = (G) => {
     }
     draw(G);
     if (G.end) { return; }
-    window.setTimeout(() => update(G), STEPS[G.stage - 1]);
+    window.setTimeout(() => update(G, game), STEPS[G.stage - 1]);
 };
 
 const process = (G, k) => {
     if (k == 13) {  // ENTER RESTART
-        G.end = false;
         if ((G.lines < WIN_LINES) || (
             (G.stage == NUM_STAGES) && (G.round == NUM_ROUNDS)
         )) {
@@ -128,11 +122,15 @@ const process = (G, k) => {
         G.lines = 0;
         clear_board(G.B);
         G.P.length = 0;
-        refill(G.P);
-        next_piece(G);
-        --G.y;
         draw(G);
-        update(G);
+        if (G.end) {
+            G.end = false;
+            refill(G.P);
+            next_piece(G);
+            update(G, ++G.game);
+        } else {
+            G.end = true;
+        }
         return;
     }
     if (G.end) { return; }
@@ -172,7 +170,7 @@ const process = (G, k) => {
             const t = G.t;
             next_piece(G);
             G.P.push(t);
-            G.swap = false;
+            G.hold = false;
             break;
         default:
             break;
@@ -270,18 +268,6 @@ const draw = (G) => {
             draw_cell(`B${x},${y}`, (lost && (c == 'B')) ? 'F' : c);
         }
     }
-    process_piece(G, (x, y) => draw_cell(`B${x},${y}`, G.t), G.m);
-    const shape = rotated_piece(G.t, G.r);
-    const s = shape.length;
-    for (let y = 0; y < s; ++y) {
-        const y_ = G.y + y;
-        if ((y_ < 0) || (y_ >= G.m)) { continue; }
-        for (let x = 0; x < s; ++x) {
-            if (shape[y][x] != '#') { continue; }
-            const x_ = G.x + x;
-            if ((x_ < 0) || (x_ >= n)) { continue; }
-        }
-    }
     for (const s of ["lines", "stage", "round", "score"]) {
         fill_el(document.getElementById(`${s}_val`), {innerHTML: `${G[s]}`});
     }
@@ -292,16 +278,22 @@ const draw = (G) => {
             (G.round == NUM_ROUNDS) ? "GAME COMPLETE!" : "ROUND COMPLETE!"
         ) : "STAGE COMPLETE!"))
     }, {});
-    if (G.end || (G.P.length < 1)) { return; }
-    const type = G.P[G.P.length - 1];
-    const shape_ = SHAPES[type];
-    const s_ = shape_.length;
     for (let y = 0; y < 4; ++y) {
         for (let x = 0; x < 4; ++x) {
-            const t = ((y < s_) && (x < s_)) ? shape_[y][x] : ' ';
+            draw_cell(`P${x},${y}`, 'X');
+        }
+    }
+    if (G.end || (G.P.length < 1)) { return; }
+    const type = G.P[G.P.length - 1];
+    const shape = SHAPES[type];
+    const s = shape.length;
+    for (let y = 0; y < 4; ++y) {
+        for (let x = 0; x < 4; ++x) {
+            const t = ((y < s) && (x < s)) ? shape[y][x] : ' ';
             draw_cell(`P${x},${y}`, (t == ' ') ? 'X' : type);
         }
     }
+    process_piece(G, (x, y) => draw_cell(`B${x},${y}`, G.t), G.m);
 };
 
 const print_board = (G) => {
@@ -359,7 +351,7 @@ const place = (G, drop = 0) => {
     G.lines += cn;
     G.score += POINTS[cn] + drop;
     next_piece(G);
-    G.swap = true;
+    G.hold = true;
     if ((G.lines >= WIN_LINES) || !check(G)) { G.end = true; }
 };
 
