@@ -72,10 +72,11 @@ const play_note = (G, i = G.game, note = 0) => {
     window.setTimeout(() => play_note(G, i, (note + 1) % TUNE.length), time);
 };
 
-const start_piece = (G) => { G.x = 4, G.y = 20, G.r = 0; }
-
 const main = () => {
     document.body.style.background = COLORS[BKG];
+    const title = document.createElement("title");
+    title.innerHTML = "Tetris";
+    document.head.appendChild(title);
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const volume = audioCtx.createGain();
     volume.connect(audioCtx.destination);
@@ -151,6 +152,8 @@ const update = (G, game) => {
     if (!G.running) { return; }
     window.setTimeout(() => update(G, game), TIMES[G.stage - 1]);
 };
+
+const start_piece = (G) => { G.x = 4, G.y = 20, G.r = 0; }
 
 const process = (G, e) => {
     const k = e.keyCode;
