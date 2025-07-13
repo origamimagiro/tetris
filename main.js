@@ -60,8 +60,8 @@ const TUNE = [
     [5, 4], [3, 4], [4, 4], [2, 4], [3, 2], [5, 2], [9, 2], [9, 2], [8, 8],
 ];
 
-const play_note = (G, i = G.game, note = 0) => {
-    if (i != G.game) { return; }
+const play_music = (G, i = G.play, note = 0) => {
+    if (G.mute || (i != G.play)) { return; }
     const [f, t] = TUNE[note];
     const time = (TIMES[G.stage - 1]*0.1 + 90)*t;
     G.oscillator = new OscillatorNode(G.audioCtx, {
@@ -69,7 +69,17 @@ const play_note = (G, i = G.game, note = 0) => {
     G.oscillator.connect(G.volume);
     G.oscillator.start();
     G.oscillator.stop(G.audioCtx.currentTime + 0.0007*time);
-    window.setTimeout(() => play_note(G, i, (note + 1) % TUNE.length), time);
+    window.setTimeout(() => play_music(G, i, (note + 1) % TUNE.length), time);
+};
+
+const stop_music = (G) => {
+    ++G.play;
+    G.oscillator.stop();
+};
+
+const STATE = {
+    START: 0, RUNNING: 1,
+    LOST: 2,  SUCCESS: 3, WIN: 4,
 };
 
 const main = () => {
@@ -85,8 +95,8 @@ const main = () => {
         B: Array(24).fill().map(() => Array(10).fill()),
         P: Array(7).fill().map((_, i) => i),
         t: 0, t_: 0, i: 0, x: 0, y: 0, r: 0, m: 20,
-        running: false, lost: false, hold: true, game: 0,
-        round: 1, stage: 1, lines: 0, score: 0,
+        state: STATE.START, hold: true, mute: false, play: 0,
+        round: 1, stage: 1, lines: 0, score: 0, game: 0,
         audioCtx, volume, oscillator: undefined,
     };
     const GUI = [
@@ -142,14 +152,13 @@ const main = () => {
 };
 
 const update = (G, game) => {
-    if (!G.running || (G.game != game)) { return; }
+    if ((G.state != STATE.RUNNING) || (G.game != game)) { return; }
     G.y--;
     if (!check(G)) {
         G.y++;
         place(G);
     }
     draw(G);
-    if (!G.running) { return; }
     window.setTimeout(() => update(G, game), TIMES[G.stage - 1]);
 };
 
@@ -158,34 +167,34 @@ const start_piece = (G) => { G.x = 4, G.y = 20, G.r = 0; }
 const process = (G, e) => {
     const k = e.keyCode;
     if (k == 13) {  // ENTER (RESTART)
-        if ((G.lines < WIN_LINES) || (
-            (G.stage == NUM_STAGES) && (G.round == NUM_ROUNDS)
-        )) {
-            G.score = 0;
-            G.stage = G.round = 1;
-        } else {
-            if (G.stage == NUM_STAGES) {
-                G.stage = 1;
-                ++G.round;
-            } else {
-                ++G.stage;
-            }
-        }
         G.lines = 0;
-        clear_board(G);
-        G.running = !G.running;
-        if (G.running) {
-            G.lost = false;
-            update(G, G.game);
-            play_note(G);
+        if (G.state == STATE.RUNNING) { stop_music(G); }
+        if ((G.state == STATE.RUNNING) || (G.state == STATE.LOST)) {
+            clear_board(G);
         } else {
-            G.oscillator.stop();
+            if (G.state == STATE.SUCCESS) {
+                if (G.stage == NUM_STAGES) {
+                    G.stage = 1;
+                    if (G.round == NUM_ROUNDS) {
+                        clear_board(G);
+                    } else {
+                        ++G.round;
+                    }
+                } else {
+                    ++G.stage;
+                }
+            }
+            G.state = STATE.RUNNING;
+        }
+        draw(G);
+        if (G.state == STATE.RUNNING) {
             ++G.game;
-            draw(G);
+            update(G, G.game);
+            play_music(G);
         }
         return;
     }
-    if (!G.running) { return; }
+    if (G.state != STATE.RUNNING) { return; }
     switch (k) {
         case 37: // LEFT
         case 39: // RIGHT
@@ -202,7 +211,8 @@ const process = (G, e) => {
             const a = (k == 38) ? 3 : 1;
             const r = G.r;
             G.r = (G.r + a) % 4;
-            for (const [x, y] of kick(r, G.r, G.t)) {
+            const kicks = kick(r, G.r, G.t);
+            for (const [x, y] of kicks) {
                 G.x += x; G.y += y;
                 if (check(G)) { break; }
                 G.x -= x; G.y -= y;
@@ -221,6 +231,14 @@ const process = (G, e) => {
             [G.t, G.t_] = [G.t_, G.t];
             start_piece(G);
             G.hold = false;
+            break;
+        case 77: // M MUTE
+            G.mute = !G.mute;
+            if (G.mute) {
+                stop_music(G);
+            } else {
+                play_music(G);
+            }
             break;
     }
     draw(G);
@@ -265,23 +283,25 @@ const draw = (G) => {
         fill_el(document.getElementById(`${s}_val`), {innerHTML: `${G[s]}`});
     }
     fill_el(document.getElementById("end"), {innerHTML:
-        G.lost ? "GAME OVER" : (
-        (G.running || (G.lines == 0)) ? "" : (
-        (G.stage == NUM_STAGES) ? (
-            (G.round == NUM_ROUNDS) ? "GAME COMPLETE!" : "ROUND COMPLETE!"
-        ) : "STAGE COMPLETE!"))
+        (G.state == STATE.LOST) ? "GAME OVER" : (
+        (G.state == STATE.SUCCESS) ? (
+            (G.stage == NUM_STAGES) ? (
+                (G.round == NUM_ROUNDS) ? "GAME COMPLETE!" : "ROUND COMPLETE!"
+            ) : "STAGE COMPLETE"
+        ) : "")
     }, {});
     const n = G.B[0].length;
     for (let y = 0; y < G.m; ++y) {
         for (let x = 0; x < n; ++x) {
             const c = G.B[y][x];
-            draw_cell(`B${x},${y}`, (G.lost && (c == BLK)) ? END : c);
+            draw_cell(`B${x},${y}`,
+                ((G.state == STATE.LOST) && (c == BLK)) ? END : c);
         }
     }
     for (const [x, y] of P) {
         draw_cell(`P${x},${y}`, BKG);
     }
-    if (!(G.running || G.lost)) { return; }
+    if (G.state == STATE.START) { return; }
     for (const i of SHAPES[G.t_]) {
         draw_cell(`P${P[i][0]},${P[i][1]}`, G.t_);
     }
@@ -290,12 +310,15 @@ const draw = (G) => {
 
 const print_board = (G) => {
     const S = G.B.map((R, y) => R.map((c, x) => CHARS[c]));
-    if (!(G.running || G.lost)) { process_piece(G, (x, y) => S[y][x] = G.t); }
+    if (G.state != STATE.START) { process_piece(G, (x, y) => S[y][x] = G.t); }
     S.reverse();
     console.log(S.map(R => R.join("")).join("\n"));
 };
 
 const clear_board = (G) => {
+    G.state = STATE.START;
+    G.score = 0;
+    G.stage = G.round = 1;
     const m = G.B.length;
     const n = G.B[0].length;
     for (let y = 0; y < m; ++y) {
@@ -348,11 +371,10 @@ const place = (G, drop = 0) => {
     }
     start_piece(G);
     G.hold = true;
-    G.lost = !check(G);
-    if (G.lost || (G.lines >= WIN_LINES)) {
-        G.running = false;
-        ++G.game;
-        G.oscillator.stop();
+    const win = (G.lines >= WIN_LINES);
+    if ((!check(G)) || win) {
+        G.state = win ? STATE.SUCCESS : STATE.LOST;
+        stop_music(G);
     }
 };
 
