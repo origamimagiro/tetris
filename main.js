@@ -36,28 +36,20 @@ const NUM_STAGES = TIMES.length;
 const NUM_ROUNDS = 6;
 const WIN_LINES = 25;
 
-// https://mixbutton.com/music-tools/frequency-and-pitch/music-note-to-frequency-chart
-const NOTES = [
-    415.30, // 0: G#
-    440.00, // 1: A
-    493.88, // 2: B
-    523.25, // 3: C
-    587.33, // 4: D
-    659.25, // 5: E
-    698.46, // 6: F
-    783.99, // 7: G
-    830.61, // 8: G#
-    880.00, // 9: A
-];
+// https://en.wikipedia.org/wiki/Scientific_pitch_notation
+const FREQ = (i) => 440*(2**(i/12));
 
 // http://www.jk-quantized.com/blog/2013/11/22/tetris-theme-song-using-processing
 const TUNE = [
-    [5, 2], [2, 1], [3, 1], [4, 2], [3, 1], [2, 1], [1, 2], [1, 1], [3, 1],
-    [5, 2], [4, 1], [3, 1], [2, 3], [3, 1], [4, 2], [5, 2], [3, 2], [1, 2],
-    [1, 5], [4, 2], [6, 1], [9, 2], [7, 1], [6, 1], [5, 3], [3, 1], [5, 2],
-    [4, 1], [3, 1], [2, 2], [2, 1], [3, 1], [4, 2], [5, 2], [3, 2], [1, 2],
-    [1, 4], [5, 4], [3, 4], [4, 4], [2, 4], [3, 4], [1, 4], [0, 4], [2, 4],
-    [5, 4], [3, 4], [4, 4], [2, 4], [3, 2], [5, 2], [9, 2], [9, 2], [8, 8],
+    [ 7, 2], [ 2, 1], [ 3, 1], [ 5, 2], [ 3, 1], [ 2, 1],
+    [ 0, 2], [ 0, 1], [ 3, 1], [ 7, 2], [ 5, 1], [ 3, 1],
+    [ 2, 3], [ 3, 1], [ 5, 2], [ 7, 2], [ 3, 2], [ 0, 2],
+    [ 0, 5], [ 5, 2], [ 8, 1], [12, 2], [10, 1], [ 8, 1],
+    [ 7, 3], [ 3, 1], [ 7, 2], [ 5, 1], [ 3, 1], [ 2, 2],
+    [ 2, 1], [ 3, 1], [ 5, 2], [ 7, 2], [ 3, 2], [ 0, 2],
+    [ 0, 4], [ 7, 4], [ 3, 4], [ 5, 4], [ 2, 4], [ 3, 4],
+    [ 0, 4], [-1, 4], [ 2, 4], [ 7, 4], [ 3, 4], [ 5, 4],
+    [ 2, 4], [ 3, 2], [ 7, 2], [12, 2], [12, 2], [11, 8],
 ];
 
 const play_music = (G, i = G.play, note = 0) => {
@@ -65,7 +57,7 @@ const play_music = (G, i = G.play, note = 0) => {
     const [f, t] = TUNE[note];
     const time = (TIMES[G.stage - 1]*0.1 + 90)*t;
     G.oscillator = new OscillatorNode(G.audioCtx, {
-        type: 'square', frequency: NOTES[f]});
+        type: 'square', frequency: FREQ(f)});
     G.oscillator.connect(G.volume);
     G.oscillator.start();
     G.oscillator.stop(G.audioCtx.currentTime + 0.0007*time);
