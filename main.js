@@ -36,6 +36,8 @@ const NUM_STAGES = TIMES.length;
 const NUM_ROUNDS = 6;
 const WIN_LINES = 25;
 
+const STATE = {START: 0, RUNNING: 1, LOST: 2,  SUCCESS: 3, WIN: 4};
+
 // https://en.wikipedia.org/wiki/Scientific_pitch_notation
 const FREQ = (i) => 440*(2**(i/12));
 
@@ -52,6 +54,7 @@ const TUNE = [
     [ 2, 4], [ 3, 2], [ 7, 2], [12, 2], [12, 2], [11, 8],
 ];
 
+const stop_music = (G) => { ++G.play; G.oscillator.stop(); };
 const play_music = (G, i = G.play, note = 0) => {
     if (G.mute || (i != G.play)) { return; }
     const [f, t] = TUNE[note];
@@ -62,16 +65,6 @@ const play_music = (G, i = G.play, note = 0) => {
     G.oscillator.start();
     G.oscillator.stop(G.audioCtx.currentTime + 0.0007*time);
     window.setTimeout(() => play_music(G, i, (note + 1) % TUNE.length), time);
-};
-
-const stop_music = (G) => {
-    ++G.play;
-    G.oscillator.stop();
-};
-
-const STATE = {
-    START: 0, RUNNING: 1,
-    LOST: 2,  SUCCESS: 3, WIN: 4,
 };
 
 const main = () => {
@@ -112,10 +105,8 @@ const main = () => {
     for (const [id, text, x, y] of GUI) {
         const el = document.createElement("div");
         fill_el(el, {id, innerHTML: text}, {
-            position: "absolute",
-            left: `${x}px`,
-            top: `${y}px`,
-            fontFamily: "monospace",
+            left: `${x}px`, top: `${y}px`,
+            position: "absolute", fontFamily: "monospace",
         });
         document.body.appendChild(el);
     }
@@ -135,9 +126,7 @@ const main = () => {
             make_cell('B', x, y, 1, 21);
         }
     }
-    for (const [x, y] of P) {
-        make_cell('P', x, y, 13, 20);
-    }
+    for (const [x, y] of P) { make_cell('P', x, y, 13, 20); }
     clear_board(G);
     draw(G);
     document.onkeydown = (e) => process(G, e);
@@ -146,10 +135,7 @@ const main = () => {
 const update = (G, game) => {
     if ((G.state != STATE.RUNNING) || (G.game != game)) { return; }
     G.y--;
-    if (!check(G)) {
-        G.y++;
-        place(G);
-    }
+    if (!check(G)) { G.y++; place(G); }
     draw(G);
     window.setTimeout(() => update(G, game), TIMES[G.stage - 1]);
 };
@@ -160,23 +146,17 @@ const process = (G, e) => {
     const k = e.keyCode;
     if (k == 13) {  // ENTER (RESTART)
         G.lines = 0;
-        if (G.state == STATE.RUNNING) { stop_music(G); }
-        if ((G.state == STATE.RUNNING) || (G.state == STATE.LOST)) {
-            clear_board(G);
-        } else {
-            if (G.state == STATE.SUCCESS) {
-                if (G.stage == NUM_STAGES) {
-                    G.stage = 1;
-                    if (G.round == NUM_ROUNDS) {
-                        clear_board(G);
-                    } else {
-                        ++G.round;
-                    }
-                } else {
-                    ++G.stage;
+        switch (G.state) {
+            case STATE.RUNNING: stop_music(G);  // fallthrough
+            case STATE.LOST:    clear_board(G); break;
+            case STATE.SUCCESS:
+                G.stage = (G.stage % NUM_STAGES) + 1;
+                if (G.stage == 1) {
+                    G.round = (G.round % NUM_ROUNDS) + 1;
+                    if (G.round == 1) { clear_board(G); }
                 }
-            }
-            G.state = STATE.RUNNING;
+            case STATE.START: // fallthrough
+            case STATE.WIN: G.state = STATE.RUNNING; break;
         }
         draw(G);
         if (G.state == STATE.RUNNING) {
@@ -184,56 +164,51 @@ const process = (G, e) => {
             update(G, G.game);
             play_music(G);
         }
-        return;
+    } else if (G.state == STATE.RUNNING) {
+        switch (k) {
+            case 37: // LEFT
+            case 39: // RIGHT
+                const d = (k == 37) ? -1 : 1;
+                G.x += d;
+                if (!check(G)) { G.x -= d; }
+                break;
+            case 40: // DOWN
+                --G.y;
+                if (!check(G)) { ++G.y; place(G); }
+                break;
+            case 38: // UP (ROTATE CW)
+            case 90: // Z  (ROTATE CCW)
+                const a = (k == 38) ? 3 : 1;
+                const r = G.r;
+                G.r = (G.r + a) % 4;
+                const kicks = kick(r, G.r, G.t);
+                for (const [x, y] of kicks) {
+                    G.x += x; G.y += y;
+                    if (check(G)) { break; }
+                    G.x -= x; G.y -= y;
+                }
+                if (!check(G)) { G.r = (G.r + a + 2) % 4; }
+                break;
+            case 32: // SPACE DROP
+                let drop = G.y + 1;
+                do { --G.y; } while (check(G))
+                ++G.y;
+                drop -= G.y;
+                place(G, drop);
+                break;
+            case 67: // C HOLD
+                if (!G.hold) { return; }
+                [G.t, G.t_] = [G.t_, G.t];
+                start_piece(G);
+                G.hold = false;
+                break;
+            case 77: // M MUTE
+                G.mute = !G.mute;
+                G.mute ? stop_music(G) : play_music(G);
+                break;
+        }
+        draw(G);
     }
-    if (G.state != STATE.RUNNING) { return; }
-    switch (k) {
-        case 37: // LEFT
-        case 39: // RIGHT
-            const d = (k == 37) ? -1 : 1;
-            G.x += d;
-            if (!check(G)) { G.x -= d; }
-            break;
-        case 40: // DOWN
-            --G.y;
-            if (!check(G)) { ++G.y; place(G); }
-            break;
-        case 38: // UP (ROTATE CW)
-        case 90: // Z  (ROTATE CCW)
-            const a = (k == 38) ? 3 : 1;
-            const r = G.r;
-            G.r = (G.r + a) % 4;
-            const kicks = kick(r, G.r, G.t);
-            for (const [x, y] of kicks) {
-                G.x += x; G.y += y;
-                if (check(G)) { break; }
-                G.x -= x; G.y -= y;
-            }
-            if (!check(G)) { G.r = (G.r + a + 2) % 4; }
-            break;
-        case 32: // SPACE DROP
-            let drop = G.y + 1;
-            do { --G.y; } while (check(G))
-            ++G.y;
-            drop -= G.y;
-            place(G, drop);
-            break;
-        case 67: // C HOLD
-            if (!G.hold) { return; }
-            [G.t, G.t_] = [G.t_, G.t];
-            start_piece(G);
-            G.hold = false;
-            break;
-        case 77: // M MUTE
-            G.mute = !G.mute;
-            if (G.mute) {
-                stop_music(G);
-            } else {
-                play_music(G);
-            }
-            break;
-    }
-    draw(G);
 };
 
 const check = (G) => {
@@ -264,8 +239,7 @@ const fill_el = (el, att, sty = {}) => {
 
 const draw_cell = (id, t) => {
     fill_el(document.getElementById(id), {}, {
-        background: COLORS[t],
-        boxSizing: "border-box",
+        background: COLORS[t], boxSizing: "border-box",
         border: (t > 6) ? "none" : `1px solid ${COLORS[BKG]}`,
     });
 };
@@ -290,9 +264,7 @@ const draw = (G) => {
                 ((G.state == STATE.LOST) && (c == BLK)) ? END : c);
         }
     }
-    for (const [x, y] of P) {
-        draw_cell(`P${x},${y}`, BKG);
-    }
+    for (const [x, y] of P) { draw_cell(`P${x},${y}`, BKG); }
     if (G.state == STATE.START) { return; }
     for (const i of SHAPES[G.t_]) {
         draw_cell(`P${P[i][0]},${P[i][1]}`, G.t_);
@@ -329,8 +301,9 @@ const process_piece = (G, f, m = G.B.length) => {
     for (const [x, y] of rotated_piece(G.t, G.r)) {
         const x_ = G.x + x;
         const y_ = G.y + y;
-        if ((x_ < 0) || (x_ >= n)) { continue; }
-        if ((y_ < 0) || (y_ >= m)) { continue; }
+        if ((x_ < 0) || (x_ >= n) ||
+            (y_ < 0) || (y_ >= m)
+        ) { continue; }
         f(x_, y_);
     }
 };
